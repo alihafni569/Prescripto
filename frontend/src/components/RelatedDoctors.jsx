@@ -83,8 +83,8 @@ const RelatedDoctors = ({ speciality, doctorId }) => {
             "
           >
             <img
-              src={item.image}
-              alt={item.name}
+              src={item.person.image}
+              alt={item.person.name}
               className="
                 h-50
                 w-full
@@ -107,10 +107,12 @@ const RelatedDoctors = ({ speciality, doctorId }) => {
                 max-md:p-3
               "
             >
-              <h3 className="m-0 text-base max-sm:text-sm">{item.name}</h3>
+              <h3 className="m-0 text-base max-sm:text-sm">
+                {item.person.name}
+              </h3>
 
               <p className="m-0 text-sm text-gray-600 max-sm:text-xs">
-                {item.speciality}
+                {item.specialization?.name || item.speciality}
               </p>
             </div>
           </Link>

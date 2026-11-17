@@ -1,4 +1,7 @@
-import React, { useState } from "react";
+import { useState, useContext } from "react";
+import axios from "axios";
+import { AppContext } from "../Context/AppContect";
+import { useNavigate, Link } from "react-router-dom";
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -8,7 +11,8 @@ const Login = () => {
   });
 
   const [showPassword, setShowPassword] = useState(false);
-  const [currentState, setCurrentState] = useState("Sign Up");
+  const { setUser } = useContext(AppContext);
+  const navigate = useNavigate();
 
   const handleChange = (field) => (e) => {
     setFormData((prev) => ({
@@ -17,8 +21,35 @@ const Login = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    try {
+      const { email, password } = formData;
+
+      if (!email || !password) {
+        throw new Error("Email and password are required for login.");
+      }
+
+      const response = await axios.post(
+        "http://localhost:3000/api/auth/login",
+        {
+          email,
+          password,
+        },
+        {
+          withCredentials: true,
+        },
+      );
+
+      setUser(response.data.user);
+      navigate("/");
+    } catch (error) {
+      console.error(
+        "Login error:",
+        error.response?.data?.message || error.message,
+      );
+    }
   };
 
   return (
@@ -31,41 +62,16 @@ const Login = () => {
           {/* Header */}
           <header className="mb-10">
             <h2 className="m-0 mb-2.5 text-3xl sm:text-[30px] font-bold text-blue-600">
-              {currentState}
+              Login
             </h2>
 
             <p className="m-0 text-sm leading-6 text-slate-500">
-              {currentState === "Login"
-                ? "Welcome back. Please login to your account."
-                : "Create your account and get started."}
+              "Welcome back. Please login to your account."
             </p>
           </header>
 
           {/* Form */}
           <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
-            {/* Name */}
-            {currentState !== "Login" && (
-              <div className="relative">
-                <input
-                  id="name"
-                  type="text"
-                  className="peer w-full border-0 border-b border-slate-300 bg-transparent px-1 pb-2.5 pt-3.5 text-[15px] text-slate-700 outline-none transition-colors duration-200 focus:border-blue-600"
-                  placeholder=" "
-                  value={formData.name}
-                  onChange={handleChange("name")}
-                  autoComplete="name"
-                  required
-                />
-
-                <label
-                  htmlFor="name"
-                  className="pointer-events-none absolute left-1 top-3.5 text-[15px] text-slate-500 transition-all duration-200 peer-focus:-top-2 peer-focus:text-[11px] peer-focus:tracking-wider peer-focus:text-blue-600 peer-[:not(:placeholder-shown)]:-top-2 peer-[:not(:placeholder-shown)]:text-[11px] peer-[:not(:placeholder-shown)]:tracking-wider peer-[:not(:placeholder-shown)]:text-blue-600"
-                >
-                  Name
-                </label>
-              </div>
-            )}
-
             {/* Email */}
             <div className="relative">
               <input
@@ -96,9 +102,7 @@ const Login = () => {
                 placeholder=" "
                 value={formData.password}
                 onChange={handleChange("password")}
-                autoComplete={
-                  currentState === "Login" ? "current-password" : "new-password"
-                }
+                autoComplete={"current-password"}
                 required
               />
 
@@ -143,35 +147,21 @@ const Login = () => {
               type="submit"
               className="mt-2 w-full cursor-pointer rounded-sm border border-blue-600 bg-blue-600 px-4 py-3.75 text-[15px] font-bold tracking-wide text-white transition-all duration-200 hover:border-blue-700 hover:bg-blue-700 active:translate-y-px focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:outline-offset-2"
             >
-              {currentState}
+              Login
             </button>
           </form>
 
           {/* Footer */}
           <div className="mt-7 text-center text-[13px] text-slate-500">
-            {currentState === "Login" ? (
-              <p>
-                Don't have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setCurrentState("Sign Up")}
-                  className="cursor-pointer border-0 border-b border-blue-600 bg-transparent p-0 font-bold text-blue-600 transition-colors duration-200 hover:border-blue-700 hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:outline-offset-2"
-                >
-                  Create one
-                </button>
-              </p>
-            ) : (
-              <p>
-                Do you have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setCurrentState("Login")}
-                  className="cursor-pointer border-0 border-b border-blue-600 bg-transparent p-0 font-bold text-blue-600 transition-colors duration-200 hover:border-blue-700 hover:text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-600 focus-visible:outline-offset-2"
-                >
-                  Login
-                </button>
-              </p>
-            )}
+            <p className="mt-6 text-center text-sm text-gray-500">
+              You dont have an account?{" "}
+              <Link
+                to="/register"
+                className="font-medium text-blue-600 hover:underline"
+              >
+                Sign up
+              </Link>
+            </p>
           </div>
         </div>
       </main>

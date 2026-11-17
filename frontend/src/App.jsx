@@ -1,4 +1,3 @@
-import React from "react";
 import { Routes, Route } from "react-router-dom";
 import NavBar from "./components/NavBar.jsx";
 import Home from "./Pages/Home.jsx";
@@ -11,11 +10,14 @@ import Contact from "./Pages/Contact.jsx";
 import Login from "./Pages/Login.jsx";
 import Profile from "./Pages/Profile.jsx";
 import MyAppoiment from "./Pages/MyAppoiment.jsx";
+import PatientRegister from "./Pages/PatientRegister.jsx";
+import { ToastContainer } from "react-toastify";
 
 const App = () => {
   return (
     <div className="App">
       <NavBar />
+      <ToastContainer />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/doctors/:specialty" element={<Doctors />} />
@@ -26,6 +28,7 @@ const App = () => {
         <Route path="/login/" element={<Login />} />
         <Route path="/profile/" element={<Profile />} />
         <Route path="/my-appoiments/" element={<MyAppoiment />} />
+        <Route path="register" element={<PatientRegister />} />
       </Routes>
       <Footer />
     </div>

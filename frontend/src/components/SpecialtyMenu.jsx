@@ -1,8 +1,11 @@
-import React from "react";
+import { useContext } from "react";
+import { AppContext } from "../Context/AppContect";
 import { specialityData } from "../assets/assets";
 import { Link } from "react-router-dom";
 
 const SpecialtyMenu = () => {
+  const { specialties } = useContext(AppContext);
+
   return (
     <section className="flex flex-col items-center justify-center px-4">
       <h1 className="text-3xl font-semibold max-md:w-full max-md:text-center max-md:text-xl">
@@ -40,10 +43,10 @@ const SpecialtyMenu = () => {
           max-sm:gap-2
         "
       >
-        {specialityData.map((speciality) => (
+        {specialties.map((speciality) => (
           <Link
-            key={speciality.speciality}
-            to={`/doctors/${speciality.speciality}`}
+            key={speciality.id}
+            to={`/doctors/${speciality.name}`}
             onClick={() => window.scrollTo(0, 0)}
             className="
               flex
@@ -60,7 +63,7 @@ const SpecialtyMenu = () => {
           >
             <img
               src={speciality.image}
-              alt={speciality.speciality}
+              alt={speciality.name}
               className="
                 mb-2
                 h-20
@@ -85,7 +88,7 @@ const SpecialtyMenu = () => {
                 max-sm:text-xs
               "
             >
-              {speciality.speciality}
+              {speciality.name}
             </h3>
           </Link>
         ))}

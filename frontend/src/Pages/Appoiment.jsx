@@ -1,97 +1,198 @@
 import React, { useContext, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { AppContext } from "../Context/AppContect";
 import { assets } from "../assets/assets";
 import RelatedDoctors from "../components/RelatedDoctors";
+import axios from "axios";
+import { toast } from "react-toastify";
+
+const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Format YYYY-MM-DD using local calendar values.
+// Avoids UTC date shifting when displaying a date.
+const getDayName = (dateString) => {
+  const [year, month, day] = dateString.split("-").map(Number);
+
+  return DAYS_OF_WEEK[new Date(year, month - 1, day).getDay()];
+};
+
+const getDayNumber = (dateString) => {
+  return Number(dateString.split("-")[2]);
+};
 
 const Appointment = () => {
   const { docId } = useParams();
-  const { doctors } = useContext(AppContext);
+  const navigate = useNavigate();
+  const { user, backendUrl, doctors } = useContext(AppContext);
 
-  const dayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thurs", "Fri", "Sat"];
+  const [doctorInfo, setDoctorInfo] = useState(null);
+  const [docDates, setDocDates] = useState([]);
+  const [dateIndex, setDateIndex] = useState(0);
 
-  const [docSlots, setDocSlots] = useState([]);
-  const [slotIndex, setSlotIndex] = useState(0);
-  const [slotTime, setSlotTime] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isBooking, setIsBooking] = useState(false);
 
-  const doctorInfo = doctors.find((doc) => doc._id === docId);
+  const [feedback, setFeedback] = useState(null);
 
-  const getAvailableSlots = () => {
-    const today = new Date();
-    const slots = [];
-
-    for (let i = 0; i < 7; i++) {
-      const currentDate = new Date(today);
-
-      currentDate.setDate(today.getDate() + i);
-
-      const endTime = new Date(today);
-      endTime.setDate(today.getDate() + i);
-      endTime.setHours(17, 0, 0, 0);
-
-      if (i === 0) {
-        currentDate.setHours(
-          currentDate.getHours() > 10 ? currentDate.getHours() + 1 : 10,
-        );
-
-        currentDate.setMinutes(currentDate.getMinutes() > 30 ? 30 : 0);
-      } else {
-        currentDate.setHours(10);
-        currentDate.setMinutes(0);
-      }
-
-      const timeSlots = [];
-
-      while (currentDate < endTime) {
-        const timeFormatted = currentDate.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-
-        timeSlots.push({
-          dateTime: new Date(currentDate),
-          time: timeFormatted,
-        });
-
-        currentDate.setMinutes(currentDate.getMinutes() + 30);
-      }
-
-      slots.push(timeSlots);
-    }
-
-    return slots;
-  };
-
+  // Load the doctor: first from the shared list, then from the backend if
+  // the list doesn't have the availability data (or isn't loaded yet).
   useEffect(() => {
-    const slots = getAvailableSlots();
+    if (!docId) return;
 
-    setDocSlots(slots);
-    setSlotIndex(0);
-    setSlotTime("");
-  }, [docId]);
+    let isMounted = true;
+
+    const loadDoctor = async () => {
+      setIsLoading(true);
+      setDateIndex(0);
+      setFeedback(null);
+
+      // URL params are strings, ids are numbers: compare as strings.
+      // (find returns ONE doctor; and `===` compares, `=` would overwrite the id)
+      const fromContext = doctors?.find(
+        (doc) => String(doc.id) === String(docId),
+      );
+
+      if (fromContext?.availableDays) {
+        setDoctorInfo(fromContext);
+        setDocDates(fromContext.availableDays);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        // Adjust this endpoint to the one your API exposes for a single doctor
+        const { data } = await axios.get(`${backendUrl}doctors/${docId}`, {
+          withCredentials: true,
+        });
+
+        if (!isMounted) return;
+
+        const fetched = data.doctor ?? data.data ?? data;
+        setDoctorInfo(fetched);
+        console.log(fetched);
+        setDocDates(fetched?.availableDays ?? []);
+      } catch (error) {
+        if (!isMounted) return;
+
+        console.error("Fetch doctor error:", error);
+        setDoctorInfo(fromContext ?? null);
+        setDocDates(fromContext?.availableDays ?? []);
+
+        if (!fromContext) toast.error("Failed to load doctor information");
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    loadDoctor();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [docId, backendUrl, doctors]);
 
   const handleDateSelect = (index) => {
-    setSlotIndex(index);
-    setSlotTime("");
+    setDateIndex(index);
+    setFeedback(null);
   };
 
-  const handleTimeSelect = (time) => {
-    setSlotTime(time);
+  const selectedDate = docDates[dateIndex];
+
+  // Book appointment.
+  const handleBookAppointment = async () => {
+    if (isBooking) return;
+
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    if (!selectedDate?.date || !doctorInfo?.id) {
+      setFeedback({
+        type: "error",
+        message: "Please select a valid date.",
+      });
+      return;
+    }
+
+    // Prevent booking if the selected day has no remaining capacity.
+    if (selectedDate.remainingAppointments <= 0) {
+      setFeedback({
+        type: "error",
+        message: "This day is fully booked. Please select another day.",
+      });
+      return;
+    }
+
+    setIsBooking(true);
+    setFeedback(null);
+
+    try {
+      await axios.post(
+        `${backendUrl}appointments`,
+        {
+          doctor_id: doctorInfo.id,
+          appointment_date: selectedDate.date,
+          user_id: user.id,
+          reason: "General Consultation",
+        },
+        { withCredentials: true },
+      );
+
+      // Reflect the booking in the UI right away
+      setDocDates((prev) =>
+        prev.map((day, index) =>
+          index === dateIndex
+            ? { ...day, remainingAppointments: day.remainingAppointments - 1 }
+            : day,
+        ),
+      );
+
+      setFeedback({
+        type: "success",
+        message: "Your appointment has been booked successfully.",
+      });
+
+      toast.success("Your appointment has been booked successfully.");
+    } catch (error) {
+      console.error("Booking error:", error.response?.data);
+
+      const message =
+        error.response?.data?.message ||
+        error.response?.data?.errors?.[0]?.message ||
+        "Failed to book the appointment. Please try again.";
+
+      setFeedback({ type: "error", message });
+      toast.error(message);
+    } finally {
+      setIsBooking(false);
+    }
   };
 
-  const handleBookAppointment = () => {
-    if (!slotTime) return;
+  // Loading state.
+  if (isLoading) {
+    return (
+      <div className="mt-20 flex justify-center">
+        <p className="text-gray-500">Loading doctor information...</p>
+      </div>
+    );
+  }
 
-    const selectedDate = docSlots[slotIndex]?.[0]?.dateTime;
+  // Doctor not found.
+  if (!doctorInfo) {
+    return (
+      <div className="mt-20 text-center">
+        <p className="text-red-500">
+          {feedback?.message ?? "Doctor not found."}
+        </p>
+      </div>
+    );
+  }
 
-    console.log("Booking appointment:", {
-      docId,
-      date: selectedDate,
-      time: slotTime,
-    });
-  };
-
-  if (!doctorInfo) return null;
+  const doctorName = doctorInfo.person?.name ?? "";
+  const doctorImage = doctorInfo.person?.image;
+  const speciality =
+    doctorInfo.specialization?.name ?? doctorInfo.Specialization?.name ?? "";
 
   return (
     <main className="mt-8 sm:mt-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -99,11 +200,17 @@ const Appointment = () => {
       <section className="flex flex-col lg:flex-row gap-5 lg:gap-6">
         {/* Doctor Image */}
         <div className="w-full lg:w-[320px] shrink-0 bg-blue-600 rounded-xl overflow-hidden flex items-end justify-center">
-          <img
-            src={doctorInfo.image}
-            alt={doctorInfo.name}
-            className="w-full max-w-[320px] object-contain bottom-0"
-          />
+          {doctorImage ? (
+            <img
+              src={doctorImage}
+              alt={doctorName}
+              className="w-full max-w-[320px] object-contain"
+            />
+          ) : (
+            <div className="w-full max-w-[320px] aspect-square flex items-center justify-center text-white text-7xl font-semibold">
+              {doctorName.charAt(0)}
+            </div>
+          )}
         </div>
 
         {/* Doctor Details */}
@@ -111,7 +218,7 @@ const Appointment = () => {
           {/* Name */}
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-semibold text-gray-800">
-              {doctorInfo.name}
+              {doctorName}
             </h1>
 
             <img
@@ -124,11 +231,12 @@ const Appointment = () => {
           {/* Degree & Speciality */}
           <div className="flex flex-wrap items-center gap-3 mt-3">
             <p className="text-gray-600 text-sm sm:text-base">
-              {doctorInfo.degree} - {doctorInfo.speciality}
+              {doctorInfo.degree} - {speciality}
             </p>
 
             <span className="px-2.5 py-1 border border-gray-300 rounded-full text-xs sm:text-sm text-gray-600">
-              {doctorInfo.experience}
+              {doctorInfo.experience}{" "}
+              {doctorInfo.experience === 1 ? "Year" : "Years"}
             </span>
           </div>
 
@@ -148,7 +256,7 @@ const Appointment = () => {
             <p className="text-gray-700">
               <span className="font-medium">Appointment fee:</span>{" "}
               <span className="text-blue-600 font-semibold">
-                ${doctorInfo.fees}
+                ${doctorInfo.fee}
               </span>
             </p>
           </div>
@@ -158,90 +266,91 @@ const Appointment = () => {
       {/* Booking */}
       <section className="mt-12 sm:mt-14 max-w-4xl">
         <h2 className="text-xl sm:text-2xl font-semibold text-gray-800">
-          Booking slots
+          Select a date
         </h2>
 
-        {/* Date Picker */}
-        <div className="mt-5 flex gap-2 sm:gap-3 overflow-x-auto pb-2 scrollbar-hide">
-          {docSlots.map((item, index) => {
-            const isSelected = index === slotIndex;
+        {/* Available Dates */}
+        {docDates.length > 0 ? (
+          <div className="mt-5 flex gap-2 sm:gap-3 overflow-x-auto pb-2 scrollbar-hide">
+            {docDates.map((day, index) => {
+              const isSelected = index === dateIndex;
 
-            return (
-              <button
-                key={index}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => handleDateSelect(index)}
-                className={`
-                  shrink-0
-                  w-16 sm:w-18
-                  h-20 sm:h-22
-                  rounded-2xl
-                  border
-                  flex flex-col
-                  items-center
-                  justify-center
-                  gap-1
-                  text-sm
-                  transition-all
-                  duration-200 
-                   cursor-pointer
-                  ${
-                    isSelected
-                      ? "bg-blue-600 border-blue-600 text-white shadow-md"
-                      : "bg-white border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600"
-                  }
-                `}
-              >
-                <span className="font-medium">
-                  {dayOfWeek[item[0]?.dateTime.getDay()]}
-                </span>
+              return (
+                <button
+                  key={day.date}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => handleDateSelect(index)}
+                  className={`
+                    shrink-0
+                    w-20 sm:w-22
+                    h-24
+                    rounded-2xl
+                    border
+                    flex flex-col
+                    items-center
+                    justify-center
+                    gap-1
+                    text-sm
+                    transition-all
+                    duration-200
+                    cursor-pointer
+                    ${
+                      isSelected
+                        ? "bg-blue-600 border-blue-600 text-white shadow-md"
+                        : "bg-white border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600"
+                    }
+                  `}
+                >
+                  <span className="font-medium">{getDayName(day.date)}</span>
 
-                <span className="text-lg font-semibold">
-                  {item[0]?.dateTime.getDate()}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                  <span className="text-lg font-semibold">
+                    {getDayNumber(day.date)}
+                  </span>
 
-        {/* Time Picker */}
-        <div className="mt-6 flex flex-wrap gap-2.5 sm:gap-3">
-          {docSlots[slotIndex]?.map((item, index) => {
-            const isSelected = item.time === slotTime;
+                  <span className="text-xs">
+                    {day.remainingAppointments} slots
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-5 text-gray-500">
+            No available appointment days next week.
+          </p>
+        )}
 
-            return (
-              <button
-                key={index}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => handleTimeSelect(item.time)}
-                className={`
-                  px-4 sm:px-5
-                  py-2
-                  rounded-full
-                  border
-                  text-xs sm:text-sm
-                  transition-all
-                  duration-200
-                  cursor-pointer
-                  ${
-                    isSelected
-                      ? "bg-blue-600 border-blue-600 text-white"
-                      : "bg-white border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600"
-                  }
-                `}
-              >
-                {item.time}
-              </button>
-            );
-          })}
-        </div>
+        {/* Selected Date Availability */}
+        {selectedDate && (
+          <p className="mt-4 text-sm text-gray-600">
+            Remaining appointments:{" "}
+            <span className="font-semibold text-blue-600">
+              {selectedDate.remainingAppointments}
+            </span>
+          </p>
+        )}
+
+        {/* Feedback */}
+        {feedback && (
+          <p
+            role={feedback.type === "error" ? "alert" : "status"}
+            className={`mt-5 text-sm ${
+              feedback.type === "error" ? "text-red-600" : "text-green-600"
+            }`}
+          >
+            {feedback.message}
+          </p>
+        )}
 
         {/* Book Button */}
         <button
           type="button"
-          disabled={!slotTime}
+          disabled={
+            isBooking ||
+            !selectedDate ||
+            selectedDate.remainingAppointments <= 0
+          }
           onClick={handleBookAppointment}
           className="
             mt-7
@@ -261,16 +370,13 @@ const Appointment = () => {
             disabled:cursor-not-allowed
           "
         >
-          Book an appointment
+          {isBooking ? "Booking..." : "Book an appointment"}
         </button>
       </section>
 
       {/* Related Doctors */}
       <section className="mt-16 flex justify-center">
-        <RelatedDoctors
-          speciality={doctorInfo.speciality}
-          doctorId={doctorInfo._id}
-        />
+        <RelatedDoctors speciality={speciality} doctorId={doctorInfo.id} />
       </section>
     </main>
   );

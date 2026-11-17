@@ -1,0 +1,3 @@
+const MAX_APPOINTMENTS_PER_DAY = 30;
+
+module.exports = { MAX_APPOINTMENTS_PER_DAY };

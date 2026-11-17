@@ -55,6 +55,7 @@ const TopDoctors = () => {
           w-full
           grid-cols-[repeat(auto-fit,minmax(150px,200px))]
           gap-6
+          justify-center
 
           max-xl:grid-cols-[repeat(auto-fit,minmax(120px,180px))]
           max-xl:gap-5
@@ -68,12 +69,13 @@ const TopDoctors = () => {
           max-md:gap-3.75
 
           max-sm:gap-2.5
+          
         "
       >
         {doctors.slice(0, 10).map((doctor) => (
           <Link
-            key={doctor._id}
-            to={`/appointment/${doctor._id}`}
+            key={doctor.id}
+            to={`/appointment/${doctor.id}`}
             className="
               flex
               flex-col
@@ -92,8 +94,8 @@ const TopDoctors = () => {
             "
           >
             <img
-              src={doctor.image}
-              alt={doctor.name}
+              src={doctor.person.image}
+              alt={doctor.person.name}
               className="
                 h-62.5
                 w-full
@@ -126,7 +128,7 @@ const TopDoctors = () => {
                   max-sm:text-[0.85rem]
                 "
               >
-                {doctor.name}
+                {doctor.person.name}
               </h3>
 
               <p
@@ -139,7 +141,7 @@ const TopDoctors = () => {
                   max-sm:text-[0.75rem]
                 "
               >
-                {doctor.speciality}
+                {doctor.specialization.name}
               </p>
             </div>
           </Link>

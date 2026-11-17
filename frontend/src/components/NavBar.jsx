@@ -1,11 +1,39 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useContext } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { assets } from "../assets/assets";
+import { AppContext } from "../Context/AppContect";
+
+function Avatar({ src, name, className = "h-12 w-12 text-lg" }) {
+  const [failedSrc, setFailedSrc] = useState(null);
+  const initial = name.charAt(0).toUpperCase() || "?";
+  const showImage = Boolean(src) && failedSrc !== src;
+
+  return (
+    <span
+      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-100 font-semibold text-blue-700 ${className}`}
+    >
+      {showImage ? (
+        <img
+          src={src}
+          alt={name ? `${name}'s photo` : "Patient photo"}
+          onError={() => setFailedSrc(src)}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        initial
+      )}
+    </span>
+  );
+}
 
 const NavBar = () => {
-  const [token, setToken] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, logout } = useContext(AppContext);
+
+  const handleLogout = () => {
+    logout();
+  };
 
   const navigate = useNavigate();
 
@@ -187,7 +215,7 @@ const NavBar = () => {
           )}
         </div>
 
-        {token ? (
+        {user ? (
           /* Profile */
           <div className="relative" ref={profileRef}>
             <div
@@ -211,20 +239,7 @@ const NavBar = () => {
               "
               onClick={() => setIsProfileOpen((prev) => !prev)}
             >
-              <img
-                src={assets.profile_pic}
-                alt="User"
-                className="
-                  h-10
-                  w-10
-                  rounded-full
-                  object-cover
-                  max-[830px]:h-8
-                  max-[830px]:w-8
-                  max-[400px]:h-7
-                  max-[400px]:w-7
-                "
-              />
+              <Avatar src={user?.People?.image} name={user?.People?.name} />
             </div>
 
             {/* Profile Dropdown */}
@@ -297,9 +312,9 @@ const NavBar = () => {
                   </a>
                 </li>
 
-                <li>
+                <li onClick={handleLogout}>
                   <a
-                    href="/logout"
+                    href="/login"
                     className="
                       block
                       px-4
@@ -326,7 +341,7 @@ const NavBar = () => {
         ) : (
           <button
             type="button"
-            onClick={() => navigate("/login")}
+            onClick={() => navigate("/register")}
             className="
               cursor-pointer
               rounded-full

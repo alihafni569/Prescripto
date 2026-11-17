@@ -1,18 +1,10 @@
-import React, { useContext, useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { AppContext } from "../Context/AppContect";
 
-const specialties = [
-  "General physician",
-  "Gynecologist",
-  "Dermatologist",
-  "Pediatricians",
-  "Neurologist",
-];
-
 const Doctors = () => {
   const { specialty } = useParams();
-  const { doctors } = useContext(AppContext);
+  const { doctors, specialties } = useContext(AppContext);
 
   const [selectedSpecialty, setSelectedSpecialty] = useState(specialty || "");
 
@@ -29,10 +21,10 @@ const Doctors = () => {
 
     return doctors.filter(
       (doctor) =>
-        doctor.speciality.toLowerCase() === selectedSpecialty.toLowerCase(),
+        doctor.specialization?.name?.toLowerCase() ===
+        selectedSpecialty.toLowerCase(),
     );
   }, [doctors, selectedSpecialty]);
-
   return (
     <main className="mt-10">
       <h1 className="m-0 text-base text-gray-700">
@@ -61,13 +53,13 @@ const Doctors = () => {
           >
             {specialties.map((item) => {
               const isSelected =
-                selectedSpecialty.toLowerCase() === item.toLowerCase();
+                selectedSpecialty.toLowerCase() === item.name.toLowerCase();
 
               return (
                 <button
-                  key={item}
+                  key={item.id}
                   type="button"
-                  onClick={() => handleSpecialtyClick(item)}
+                  onClick={() => handleSpecialtyClick(item.name)}
                   className={`
                     w-full cursor-pointer rounded border px-6 py-2.5 text-sm
                     transition-colors duration-200
@@ -78,7 +70,7 @@ const Doctors = () => {
                     }
                   `}
                 >
-                  {item}
+                  {item.name}
                 </button>
               );
             })}
@@ -89,25 +81,25 @@ const Doctors = () => {
         <div className="grid flex-1 grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 m-4">
           {filteredDoctors.map((doctor) => (
             <Link
-              key={doctor._id}
-              to={`/appointment/${doctor._id}`}
+              key={doctor.id}
+              to={`/appointment/${doctor.id}`}
               className="overflow-hidden rounded-xl border border-gray-200 bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-lg"
             >
               <div className="overflow-hidden bg-indigo-50">
                 <img
-                  src={doctor.image}
-                  alt={doctor.name}
+                  src={doctor.person.image}
+                  alt={doctor.person.name}
                   className="h-80 sm:h-60 md:h-65 w-full object-cover transition-transform duration-300 hover:scale-105"
                 />
               </div>
 
               <div className="p-4">
                 <h3 className="m-0 text-base font-semibold text-gray-800">
-                  {doctor.name}
+                  {doctor.person.name}
                 </h3>
 
                 <p className="mt-1.5 mb-0 text-sm text-gray-500">
-                  {doctor.speciality}
+                  {doctor.specialization?.name}
                 </p>
               </div>
             </Link>

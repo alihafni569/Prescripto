@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model Appointment {
+  id               Int      @id(map: "PK_Appointment") @default(autoincrement())
+  patient_id       Int
+  doctor_id        Int
+  appointment_date DateTime @db.Date
+  status           String   @default("pending", map: "DF_Appointment_status") @db.VarChar(20)
+  reason           String?  @db.NVarChar(500)
+  fee              Decimal  @db.Decimal(10, 2)
+  created_at       DateTime @default(dbgenerated("sysdatetime()"), map: "DF_Appointment_created_at")
+  updated_at       DateTime @default(dbgenerated("sysdatetime()"), map: "DF_Appointment_updated_at")
+  Doctor           Doctor   @relation(fields: [doctor_id], references: [id], onUpdate: NoAction, map: "FK_Appointment_Doctor")
+  Patient          Patient  @relation(fields: [patient_id], references: [id], onUpdate: NoAction, map: "FK_Appointment_Patient")
+
+  @@index([doctor_id, appointment_date], map: "IX_Appointment_doctor_date")
+  @@index([patient_id], map: "IX_Appointment_patient_id")
+}
+
+model Doctor {
+  id                Int            @id(map: "PK_Doctor") @default(autoincrement())
+  specialization_id Int
+  degree            String         @db.NVarChar(255)
+  experience        Int
+  about             String
+  fee               Decimal        @db.Decimal(10, 2)
+  created_at        DateTime
+  updated_at        DateTime
+  person_id         Int?           @unique(map: "UQ_Doctor_person")
+  active            Boolean?
+  Appointment       Appointment[]
+  People            People?        @relation(fields: [person_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "FK_Doctor_People")
+  Specialization    Specialization @relation(fields: [specialization_id], references: [id], onUpdate: NoAction, map: "FK_Doctor_Specialization")
+
+  @@index([specialization_id], map: "IX_Doctor_specialization_id")
+}
+
+model Patient {
+  id          Int           @id(map: "PK_Patient") @default(autoincrement())
+  created_at  DateTime
+  updated_at  DateTime
+  person_id   Int           @unique(map: "UQ_Patient_person")
+  bloodType   String        @db.VarChar(10)
+  Appointment Appointment[]
+  People      People        @relation(fields: [person_id], references: [id], onUpdate: NoAction, map: "FK_Patient_Person")
+}
+
+model People {
+  id         Int       @id(map: "PK_person") @default(autoincrement())
+  name       String    @db.NVarChar(150)
+  email      String    @unique(map: "UQ__People__AB6E61648DAE7EA6") @db.NVarChar(255)
+  phone      String    @unique(map: "UQ__People__B43B145F71A5DC57") @db.VarChar(15)
+  gender     String    @db.VarChar(10)
+  birthdate  DateTime? @db.Date
+  image      String?   @db.NVarChar(Max)
+  created_at DateTime  @default(now(), map: "DF__People__created___0A9D95DB")
+  updated_at DateTime
+  Doctor     Doctor?
+  Patient    Patient?
+  Users      Users?
+
+  @@index([id], map: "IX_People")
+  @@index([id], map: "IX_People_Email")
+  @@index([id], map: "IX_People_Name")
+  @@index([id], map: "IX_People_Phone")
+}
+
+model Specialization {
+  id         Int      @id(map: "PK_Specialization") @default(autoincrement())
+  name       String   @unique(map: "UQ_Specialization_name") @db.NVarChar(150)
+  created_at DateTime @default(dbgenerated("sysdatetime()"), map: "DF_Specialization_created_at")
+  updated_at DateTime @default(dbgenerated("sysdatetime()"), map: "DF_Specialization_updated_at")
+  image      String?  @db.NVarChar(Max)
+  Doctor     Doctor[]
+}
+
+model sysdiagrams {
+  name         String @db.NVarChar(128)
+  principal_id Int
+  diagram_id   Int    @id(map: "PK__sysdiagr__C2B05B6157BE9CD8") @default(autoincrement())
+  version      Int?
+  definition   Bytes?
+
+  @@unique([principal_id, name], map: "UK_principal_name")
+}
+
+model Users {
+  id        Int     @id(map: "PK__Users__3213E83FECB2EB50") @default(autoincrement())
+  person_id Int     @unique(map: "UQ__Users__543848DE6CBE18F0")
+  email     String  @unique(map: "UQ__Users__AB6E6164E7F76238") @db.VarChar(255)
+  password  String  @db.VarChar(255)
+  role      String  @db.VarChar(10)
+  isActive  Boolean @default(true, map: "DF__Users__isActive__114A936A")
+  People    People  @relation(fields: [person_id], references: [id], onUpdate: NoAction, map: "FK_Users_People")
+}

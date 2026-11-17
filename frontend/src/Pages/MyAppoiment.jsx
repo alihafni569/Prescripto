@@ -1,8 +1,87 @@
-import React, { useContext } from "react";
+import { useContext, useEffect, useState } from "react";
 import { AppContext } from "../Context/AppContect";
+import axios from "axios";
 
 const MyAppoiment = () => {
-  const { doctors } = useContext(AppContext);
+  const [myAppointments, setMyAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState(null);
+
+  const { user, backendUrl } = useContext(AppContext);
+
+  useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchAppointments = async () => {
+      try {
+        setLoading(true);
+
+        const response = await axios.get(
+          `${backendUrl}appointments/patient-appointments`,
+          { withCredentials: true },
+        );
+
+        if (!cancelled) {
+          setMyAppointments(response.data.data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error(
+            "Failed to fetch appointments:",
+            error.response?.data || error.message,
+          );
+          console.log("Status:", error.response?.status);
+          console.log("Validation errors:", error.response?.data?.errors);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchAppointments();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, backendUrl]);
+
+  const cancelButton = async (appointmentId) => {
+    try {
+      setCancellingId(appointmentId);
+
+      await axios.patch(
+        `${backendUrl}appointments/status/${appointmentId}`,
+        { status: "cancelled" },
+        { withCredentials: true },
+      );
+
+      setMyAppointments((prev) =>
+        prev.map((appointment) =>
+          appointment.id === appointmentId
+            ? { ...appointment, status: "cancelled" }
+            : appointment,
+        ),
+      );
+    } catch (error) {
+      console.error(
+        "Failed to cancel appointment:",
+        error.response?.data || error.message,
+      );
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  if (loading) {
+    return <p className="mt-10 text-center">Loading appointments...</p>;
+  }
 
   return (
     <div className="mt-10 max-w-5xl mx-auto px-4">
@@ -10,83 +89,71 @@ const MyAppoiment = () => {
         My Appointments
       </h1>
 
-      <ul className="space-y-5 list-none p-0 m-0">
-        {doctors.slice(0, 2).map((item) => {
-          const appointmentDate = "20-08-2026";
-          const appointmentTime = "8:30 PM";
-
-          return (
+      {myAppointments.length === 0 ? (
+        <p className="text-gray-500">You have no appointments.</p>
+      ) : (
+        <ul className="space-y-5 list-none p-0 m-0">
+          {myAppointments.map((item) => (
             <li
-              key={item._id}
+              key={item.id}
               className="bg-white border border-gray-200 rounded-xl p-4 sm:p-6 flex flex-col md:flex-row gap-5 shadow-sm"
             >
-              {/* Doctor Image */}
               <div className="shrink-0">
                 <img
-                  src={item.image}
-                  alt={`Dr. ${item.name}, ${item.speciality}`}
+                  src={item.doctor?.image || "/default-doctor.png"}
+                  alt={`Dr. ${item.doctor?.name || "Doctor"}`}
                   className="w-full h-72 sm:w-40 sm:h-40 md:w-36 md:h-36 object-cover rounded-lg bg-indigo-50"
                 />
               </div>
 
-              {/* Doctor Information */}
               <div className="flex-1">
                 <h2 className="text-lg font-semibold text-gray-800">
-                  {item.name}
+                  {item.doctor?.name}
                 </h2>
 
                 <p className="text-indigo-600 text-sm font-medium mt-1">
-                  {item.speciality}
+                  {item.doctor?.specialization?.name}
                 </p>
 
-                <div className="mt-4 text-sm text-gray-600">
-                  <p
-                    className="font-medium text-gray-700 mb-1"
-                    id={`address-label-${item._id}`}
-                  >
-                    Address
-                  </p>
-                  <address
-                    className="not-italic"
-                    aria-labelledby={`address-label-${item._id}`}
-                  >
-                    <p>{item.address.line1}</p>
-                    <p>{item.address.line2}</p>
-                  </address>
-                </div>
+                <p className="mt-4 text-sm text-gray-700">
+                  <span className="font-medium">Date:</span>{" "}
+                  {item.appointment_date}
+                </p>
 
-                <div className="mt-4">
-                  <p className="text-sm text-gray-700">
-                    <span className="font-medium">Date & Time:</span>{" "}
-                    <time dateTime="2026-08-20T20:30">
-                      {appointmentDate} | {appointmentTime}
-                    </time>
-                  </p>
-                </div>
+                <p className="mt-2 text-sm text-gray-700">
+                  <span className="font-medium">Status:</span> {item.status}
+                </p>
               </div>
 
-              {/* Actions */}
               <div className="flex flex-col justify-end gap-2 md:w-52">
                 <button
                   type="button"
-                  aria-label={`Pay online for appointment with Dr. ${item.name}`}
-                  className="w-full px-4 py-2.5 rounded-lg text-sm font-medium border border-solid hover:bg-indigo-700 hover:text-blue-50  focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition-colors duration-200 cursor-pointer"
+                  className="w-full px-4 py-2.5 rounded-lg text-sm font-medium border hover:bg-indigo-700 hover:text-white transition-colors"
                 >
                   Pay Online
                 </button>
 
                 <button
                   type="button"
-                  aria-label={`Cancel appointment with Dr. ${item.name}`}
-                  className="w-full px-4 py-2.5 rounded-lg  text-sm font-medium border border-solid hover:bg-red-500 hover:text-blue-50  focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500 transition-colors duration-200 cursor-pointer"
+                  disabled={
+                    item.status === "cancelled" ||
+                    item.status === "completed" ||
+                    cancellingId === item.id
+                  }
+                  className="w-full px-4 py-2.5 rounded-lg text-sm font-medium border hover:bg-red-500 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  onClick={() => cancelButton(item.id)}
                 >
-                  Cancel Appointment
+                  {cancellingId === item.id
+                    ? "Cancelling..."
+                    : item.status === "cancelled"
+                      ? "Appointment Cancelled"
+                      : "Cancel Appointment"}
                 </button>
               </div>
             </li>
-          );
-        })}
-      </ul>
+          ))}
+        </ul>
+      )}
     </div>
   );
 };
